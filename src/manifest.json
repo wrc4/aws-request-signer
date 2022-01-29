@@ -22,6 +22,7 @@
 	"webRequest",
 	"webRequestBlocking",
 	"*://*.amazonaws.com/*",
+	"*://*.amazonaws.com.cn/*",
 	"http://169.254.169.254/*"
   ]
 }

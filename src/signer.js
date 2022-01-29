@@ -66,22 +66,22 @@ chrome.webRequest.onBeforeRequest.addListener(
 	  
 	  return;
   },
-  { urls: ["*://*.amazonaws.com/*"],
+  { urls: ["*://*.amazonaws.com/*", "*://*.amazonaws.com.cn/*", "https://386r9dgk5d.execute-api.cn-northwest-1.amazonaws.com.cn/*"],
 	types: ["main_frame","sub_frame","stylesheet","script","image","font","object","xmlhttprequest","other"]},
   ["blocking","requestBody"]
 );
 
 chrome.webRequest.onBeforeSendHeaders.addListener(
   function(details) {
-	  if (!enabled || !valid(details))
+    if (!enabled || !valid(details))
 		  return;
  
-	  var authedHeaders = signRequest(details);
+ 	  var authedHeaders = signRequest(details);
 	  delete hashedPayloads[details.requestId];
  
 	  return {requestHeaders: authedHeaders};
   },
-  { urls: ["*://*.amazonaws.com/*"],
+  { urls: ["*://*.amazonaws.com/*", "*://*.amazonaws.com.cn/*", "https://386r9dgk5d.execute-api.cn-northwest-1.amazonaws.com.cn/*"],
 	types: ["main_frame","sub_frame","stylesheet","script","image","font","object","xmlhttprequest","other"]},
   ["blocking","requestHeaders"]
 );
@@ -100,6 +100,7 @@ function valid(details) {
   var host_matches_service = false;
   var hostname = getHost(details.url);
   var hostparts = hostname.split('.');
+  log(hostparts);
   for (var i=0; i<hostparts.length; i++) {
     var part = hostparts[i];
     if (part == service || (service == 's3' && part.startsWith('s3'))) {
@@ -107,6 +108,7 @@ function valid(details) {
       break;
     }
   }
+
   if (!host_matches_service)
     return false;
   
