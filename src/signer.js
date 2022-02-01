@@ -100,7 +100,6 @@ function valid(details) {
   var host_matches_service = false;
   var hostname = getHost(details.url);
   var hostparts = hostname.split('.');
-  log(hostparts);
   for (var i=0; i<hostparts.length; i++) {
     var part = hostparts[i];
     if (part == service || (service == 's3' && part.startsWith('s3'))) {
@@ -209,7 +208,8 @@ function signRequest(request) {
   
   var authorization = algorithm + ' ';
   authorization += 'Credential=' + accesskeyid + '/' + amzDate + '/' + region + '/' + service + '/' + 'aws4_request, ';
-  authorization += 'SignedHeaders=' + getSignedHeaders(headers) + ', ';
+  // authorization += 'SignedHeaders=' + getSignedHeaders(headers) + ', ';
+  authorization += 'SignedHeaders=' + getSignedHeaders2(request) + ', ';
   authorization += 'Signature=' + signature;
   log('Authorization: ' + authorization);
 
@@ -244,7 +244,8 @@ function getCanonicalRequest(request) {
   var canonicalUri = getCanonicalUri(url);
   var canonicalQuerystring = getCanonicalQueryString(url);
   var canonicalHeaders = getCanonicalHeaders(headers);
-  var signedHeaders = getSignedHeaders(headers);
+  // var signedHeaders = getSignedHeaders(headers);
+  var signedHeaders = getSignedHeaders2(request);
   
   log('Canonical URI: ' + canonicalUri);
   log('Canonical Querystring: ' + canonicalQuerystring);
@@ -288,29 +289,29 @@ function getCanonicalQueryString(url) {
 }
 function getCanonicalHeaders(headers) {
   var aggregatedHeaders = new Array();
-  for (var i=0; i<headers.length; i++) {
-	var name = headers[i].name.toLowerCase();
-	
-	if (name.indexOf('x-devtools-') > -1)
-		continue;
-	
-	var headerfound = false;
-	for (var x=0; x<aggregatedHeaders.length; x++) {
-	  if (aggregatedHeaders[x].substr(0,name.length) === name) {
-	    aggregatedHeaders[x] += headers[i].value.trim();
-		headerfound=true;
-	    break;
-	  }
-	}
-	
-	if (!headerfound)
-		aggregatedHeaders.push(name + ':' + headers[i].value);
+  for (var i = 0; i < headers.length; i++) {
+    var name = headers[i].name.toLowerCase();
+
+    if (name !== 'host' && name !== 'x-amz-date') // && name !== 'content-type' 
+      continue;
+
+    var headerfound = false;
+    for (var x = 0; x < aggregatedHeaders.length; x++) {
+      if (aggregatedHeaders[x].substr(0, name.length) === name) {
+        aggregatedHeaders[x] += headers[i].value.trim();
+        headerfound = true;
+        break;
+      }
+    }
+
+    if (!headerfound)
+      aggregatedHeaders.push(name + ':' + headers[i].value);
   }
-  aggregatedHeaders.sort(function(a,b) { 
-        var name1 = a.substr(0,a.indexOf(':'));
-        var name2 = b.substr(0,b.indexOf(':'));
-        var order = (name1 < name2) ? -1 : (name1 > name2) ? 1 : 0;
-        return order;
+  aggregatedHeaders.sort(function (a, b) {
+    var name1 = a.substr(0, a.indexOf(':'));
+    var name2 = b.substr(0, b.indexOf(':'));
+    var order = (name1 < name2) ? -1 : (name1 > name2) ? 1 : 0;
+    return order;
   });
   var canonicalHeaders = aggregatedHeaders.join('\n');
   return canonicalHeaders + '\n';
@@ -326,12 +327,75 @@ function getSignedHeaders(headers) {
   var sortedHeaders = signedHeaders.sort();
   return sortedHeaders.join(';');
 }
+function getSignedHeaders2(request) {
+  // var body = request.requestBody;
+  // if (body && body.raw && body.raw.length > 0 && body.raw[0].bytes) {
+  //   return 'content-type;host;x-amz-date';
+  // } else {
+  //   return 'host;x-amz-date';
+  // }
+  return 'host;x-amz-date';
+}
 function getHashedPayload(request) {
   var body = request.requestBody;
   if (body && body.raw && body.raw.length > 0 && body.raw[0].bytes) {
 	var str = String.fromCharCode.apply(String, new Uint8Array(body.raw[0].bytes));
 	log('Raw Payload: ' + str);
 	return CryptoJS.SHA256(str);
+  }
+
+  if (body && body.formData) {
+    log('FormData Payload:');
+    log(JSON.stringify(body.formData));
+    return CryptoJS.SHA256(JSON.stringify(body.formData));
+    // var pairs = new Array();
+    // var datastr = '';
+    // // for (var k in body.formData) {
+    // //   pairs.push(k + '='+ body.formData[k]);
+    // // }
+    // // datastr = pairs.join('\n'); // tested: ,
+    // // for (var k in body.formData) {
+    // //   pairs.push(k + body.formData[k]);
+    // // }
+    // // datastr = pairs.join('');
+    // // for (var k in body.formData) {
+    // //   console.log(k);
+    // //   pairs.push('"'+k+'":"'+body.formData[k]+'"');
+    // // }
+    // Object.keys(body.formData).forEach(key => {
+    //   pairs.push('"'+key+'":"'+body.formData[key]+'"');
+    //   // console.log(`${key}: ${person[key]}`);
+    // });
+
+    // datastr = '{'+ pairs.join(',') + '}';
+    // console.log(datastr);
+    // return CryptoJS.SHA256(datastr);
+  // }
+
+  //   var response = new Response(body.formData);
+  //   var stream = response.body;
+  //   var reader = stream.getReader();
+  //   var decoder = new TextDecoder();
+  //   reader.read()
+  //     .then(function processData(result) {
+  //       console.log(result);
+  //       if (result.done) {
+  //         // console.log("stream done");
+  //         return;
+  //       }
+
+  //       var formstr = String.fromCharCode.apply(String, result.value);
+  //       console.log('FormData Payload: ' + formstr);
+  //       return CryptoJS.SHA256(formstr);
+
+  //       // var data = decoder.decode(result.value);
+  //       // console.log(data);
+  
+  //       return reader.read().then(processData);
+  //     })
+  //     .catch(function(err) {
+  //       console.log("catch stream cancellation:", err);
+  //     });
   }
 
   return CryptoJS.SHA256('');
